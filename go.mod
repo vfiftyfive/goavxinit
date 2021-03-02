@@ -1,4 +1,4 @@
-module github.com/vfiftyfive/Go-stuff/aviatrix/goavx
+module github.com/vfiftyfive/Go-stuff/aviatrix/goavxinit
 
 go 1.16
 
