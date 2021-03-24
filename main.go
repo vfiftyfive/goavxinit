@@ -152,7 +152,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	workingDir := tmpDir
+	workingDir := tmpDir + "/clone"
 	tf, err := tfexec.NewTerraform(workingDir, execPath)
 	if err != nil {
 		panic(err)
