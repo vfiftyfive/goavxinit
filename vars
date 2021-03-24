@@ -1,0 +1,11 @@
+#Run the following commands and replace with your own values
+#export PUBLIC_IP=<controller_public_ip>
+#export PRIVATE_IP=<controller_private_ip>
+#export NEW_PASSWORD=<new_controller_password>
+#export ADMIN_EMAIL=<admin_email_address>
+
+export PUBLIC_IP=1.2.3.4
+export PRIVATE_IP=192.168.0.10
+export NEW_PASSWORD="Aviatrix123"
+export ADMIN_EMAIL="jane@aviatrix.com"
+
