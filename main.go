@@ -21,7 +21,8 @@ var boolPtr = flag.Bool("sample", false, "Display sample configuration")
 //by default set firstBoot to true
 var firstBoot = true
 
-func addEmail(client *goaviatrix.Client, adminEmail string, controllerURL string) error {
+//Add email to Controller admin profile
+func addAdminEmail(client *goaviatrix.Client, adminEmail string, controllerURL string) error {
 	data := map[string]string{
 		"action":      "add_admin_email_addr",
 		"CID":         client.CID,
@@ -34,7 +35,8 @@ func addEmail(client *goaviatrix.Client, adminEmail string, controllerURL string
 	return nil
 }
 
-func changePassword(client *goaviatrix.Client, currentPassword string, newPassword string, controllerURL string) error {
+//Add Change Admin password
+func changeAdminPassword(client *goaviatrix.Client, currentPassword string, newPassword string, controllerURL string) error {
 	data := map[string]string{
 		"action":       "edit_account_user",
 		"CID":          client.CID,
@@ -113,13 +115,13 @@ func main() {
 	}
 
 	//add email
-	if err = addEmail(client, adminEmail, controllerURL); err != nil {
+	if err = addAdminEmail(client, adminEmail, controllerURL); err != nil {
 		log.Fatal(err)
 	}
 
 	//Change account password
 	if firstBoot {
-		if err = changePassword(client, password, newPassword, controllerURL); err != nil {
+		if err = changeAdminPassword(client, password, newPassword, controllerURL); err != nil {
 			log.Fatal(err)
 		}
 		//Update to latest software
@@ -164,6 +166,7 @@ func main() {
 		panic(err)
 	}
 
+	//Apply Terraform configuration
 	err = tf.Apply(context.Background())
 	if err != nil {
 		panic(err)
