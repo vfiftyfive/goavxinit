@@ -124,6 +124,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	//Define new Terraform Structure
 	workingDir := tmpDir + "/clone"
 	tf, err := tfexec.NewTerraform(workingDir, execPath)
 	if err != nil {
