@@ -40,7 +40,7 @@ func TestTerraform(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	// defer os.RemoveAll(tmpDir)
 	execPath, err := tfinstall.Find(context.Background(), tfinstall.LatestVersion(tmpDir, false))
 	if err != nil {
 		t.Errorf("Expected no error, but got: %v", err)
@@ -74,6 +74,6 @@ func TestTerraform(t *testing.T) {
 	//Apply Terraform configuration
 	err = tf.Apply(context.Background(), tfexec.VarFile(varFilePath))
 	if err != nil {
-		panic(err)
+		t.Errorf("Expected no error, but got: %v", err)
 	}
 }

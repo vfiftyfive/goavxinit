@@ -30,8 +30,7 @@ func ChangeAdminPassword(client *goaviatrix.Client, currentPassword string, newP
 		"old_password": currentPassword,
 		"new_password": newPassword,
 	}
-	_, err := client.Post(controllerURL, data)
-	if err != nil {
+	if _, err := client.Post(controllerURL, data); err != nil {
 		return err
 	}
 	return nil
