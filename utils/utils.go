@@ -1,8 +1,6 @@
 package utils
 
 import (
-	"time"
-
 	"github.com/terraform-providers/terraform-provider-aviatrix/goaviatrix"
 )
 
@@ -49,7 +47,6 @@ func InitialSetup(client *goaviatrix.Client, controllerURL string) error {
 	if _, err := client.Post(controllerURL, data); err != nil {
 		return err
 	}
-	time.Sleep(3)
 	return nil
 }
 

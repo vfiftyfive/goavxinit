@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/hashicorp/terraform-exec/tfexec"
@@ -51,6 +50,7 @@ func main() {
 	gitURL := os.Getenv("GIT_URL")
 	license := os.Getenv("AVX_LICENSE")
 	password := os.Getenv("AVX_PASSWORD")
+	varFilePath := os.Getenv("TF_VARFILE")
 	if (controllerIP == "") || (controllerPrivateIP == "") || (newPassword == "") || (adminEmail == "") {
 		log.Fatal("Ooops, All env variables must be defined!")
 	}
@@ -99,7 +99,6 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		time.Sleep(120 * time.Second)
 	}
 
 	//Configure License / Customer ID
@@ -133,13 +132,13 @@ func main() {
 	tf.SetStdout(os.Stdout)
 
 	//Run Terraform init
-	err = tf.Init(context.Background(), tfexec.Upgrade(true), tfexec.LockTimeout("60s"))
+	err = tf.Init(context.Background(), tfexec.Upgrade(true))
 	if err != nil {
 		panic(err)
 	}
 
 	//Apply Terraform configuration
-	err = tf.Apply(context.Background())
+	err = tf.Apply(context.Background(), tfexec.VarFile(varFilePath))
 	if err != nil {
 		panic(err)
 	}
