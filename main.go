@@ -9,11 +9,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/hashicorp/terraform-exec/tfinstall"
 	"github.com/terraform-providers/terraform-provider-aviatrix/goaviatrix"
+	"github.com/vfiftyfive/Go-stuff/aviatrix/goavxinit/utils"
 )
 
 var boolPtr = flag.Bool("sample", false, "Display sample configuration")
@@ -21,53 +23,7 @@ var boolPtr = flag.Bool("sample", false, "Display sample configuration")
 //by default set firstBoot to true
 var firstBoot = true
 
-//Add email to Controller admin profile
-func addAdminEmail(client *goaviatrix.Client, adminEmail string, controllerURL string) error {
-	data := map[string]string{
-		"action":      "add_admin_email_addr",
-		"CID":         client.CID,
-		"admin_email": adminEmail,
-	}
-	_, err := client.Post(controllerURL, data)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-//Add Change Admin password
-func changeAdminPassword(client *goaviatrix.Client, currentPassword string, newPassword string, controllerURL string) error {
-	data := map[string]string{
-		"action":       "edit_account_user",
-		"CID":          client.CID,
-		"account_name": "admin",
-		"username":     "admin",
-		"password":     currentPassword,
-		"what":         "password",
-		"old_password": currentPassword,
-		"new_password": newPassword,
-	}
-	_, err := client.Post(controllerURL, data)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func initialSetup(client *goaviatrix.Client, controllerURL string) error {
-	data := map[string]string{
-		"action":    "initial_setup",
-		"CID":       client.CID,
-		"subaction": "run",
-	}
-	if _, err := client.Post(controllerURL, data); err != nil {
-		return err
-	}
-	return nil
-}
-
 func main() {
-	var password string
 	flag.Parse()
 	if *boolPtr {
 		fmt.Println(
@@ -76,12 +32,14 @@ func main() {
 	#export PRIVATE_IP=<controller_private_ip>
 	#export NEW_PASSWORD=<new_controller_password>
 	#export ADMIN_EMAIL=<admin_email_address>
+	#export AVX_LICENSE=<aviatrix customer ID>
 
 	export PUBLIC_IP=1.2.3.4
 	export PRIVATE_IP=192.168.0.10
 	export NEW_PASSWORD="Aviatrix123"
 	export ADMIN_EMAIL="jane@aviatrix.com"
 	export GIT_URL="https://github.com/janedoe/awesomeprojet"
+	export AVX_LICENSE="123421234123412378"
 	`)
 		os.Exit(0)
 	}
@@ -91,6 +49,8 @@ func main() {
 	newPassword := os.Getenv("NEW_PASSWORD")
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	gitURL := os.Getenv("GIT_URL")
+	license := os.Getenv("AVX_LICENSE")
+	password := os.Getenv("AVX_PASSWORD")
 	if (controllerIP == "") || (controllerPrivateIP == "") || (newPassword == "") || (adminEmail == "") {
 		log.Fatal("Ooops, All env variables must be defined!")
 	}
@@ -115,13 +75,13 @@ func main() {
 	}
 
 	//add email
-	if err = addAdminEmail(client, adminEmail, controllerURL); err != nil {
+	if err = utils.AddAdminEmail(client, adminEmail, controllerURL); err != nil {
 		log.Fatal(err)
 	}
 
 	//Change account password
 	if firstBoot {
-		if err = changeAdminPassword(client, password, newPassword, controllerURL); err != nil {
+		if err = utils.ChangeAdminPassword(client, password, newPassword, controllerURL); err != nil {
 			log.Fatal(err)
 		}
 		//Update to latest software
@@ -134,6 +94,17 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		//Refresh client object with new password
+		client, err = goaviatrix.NewClient("admin", newPassword, controllerIP, &http.Client{Transport: tr})
+		if err != nil {
+			log.Fatal(err)
+		}
+		time.Sleep(120 * time.Second)
+	}
+
+	//Configure License / Customer ID
+	if err = utils.RegisterLicense(client, license, controllerURL); err != nil {
+		log.Fatal(err)
 	}
 
 	//Install Terraform
@@ -161,6 +132,7 @@ func main() {
 	}
 	tf.SetStdout(os.Stdout)
 
+	//Run Terraform init
 	err = tf.Init(context.Background(), tfexec.Upgrade(true), tfexec.LockTimeout("60s"))
 	if err != nil {
 		panic(err)
