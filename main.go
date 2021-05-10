@@ -83,11 +83,34 @@ func main() {
 	}
 
 	//Deploy Controller with Cloudformation
-	if err := utils.DeployCFT(cftStackInput); err != nil {
+	outputs, err := utils.DeployCFT(cftStackInput)
+	if err != nil {
 		log.Fatal(err)
 	}
 
 	//Retrieve Controller Information
+	type avxOutput struct {
+		ControllerEIP       string
+		AccountID           string
+		ControllerPrivateIP string
+		RoleAppARN          string
+		RoleEC2ARN          string
+	}
+	out := avxOutput{}
+	for _, element := range outputs {
+		switch *element.OutputKey {
+		case "AviatrixControllerEIP":
+			out.ControllerEIP = *element.OutputValue
+		case "AccountId":
+			out.AccountID = *element.OutputValue
+		case "AviatrixControllerPrivateIP":
+			out.ControllerPrivateIP = *element.OutputValue
+		case "AviatrixRoleAppARN":
+			out.RoleAppARN = *element.OutputValue
+		case "AviatrixRoleEC2ARN":
+			out.RoleEC2ARN = *element.OutputValue
+		}
+	}
 
 	// Skip Certificate Check
 	tr := &http.Transport{
