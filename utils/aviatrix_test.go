@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/hashicorp/terraform-exec/tfinstall"
 	"github.com/terraform-providers/terraform-provider-aviatrix/goaviatrix"
@@ -33,8 +34,9 @@ func TestRegisterLicense(t *testing.T) {
 }
 
 func TestTerraform(t *testing.T) {
+	strBranchName := "no_remote_state"
 	gitURL := "https://github.com/vfiftyfive/terraform_aviatrix_new_hire"
-	varFilePath := os.Getenv("TF_VARFILE")
+	// varFilePath := os.Getenv("TF_VARFILE")
 	//Install Terraform
 	tmpDir, err := ioutil.TempDir("", "tfinstall")
 	if err != nil {
@@ -50,10 +52,12 @@ func TestTerraform(t *testing.T) {
 	//Pull repo to be used as Terraform source
 	gitDir := tmpDir + "/clone"
 	_, err = git.PlainClone(gitDir, false, &git.CloneOptions{
-		URL: gitURL,
+		URL:           gitURL,
+		ReferenceName: plumbing.NewBranchReferenceName(strBranchName),
+		SingleBranch:  true,
 	})
 	if err != nil {
-		t.Errorf("Expected no error, but got: %v", err)
+		t.Errorf("Expected no error, but got error: %v", err)
 	}
 
 	//Define new Terraform Structure
@@ -71,9 +75,9 @@ func TestTerraform(t *testing.T) {
 		t.Errorf("Expected no error, but got: %v", err)
 	}
 
-	//Apply Terraform configuration
-	err = tf.Apply(context.Background(), tfexec.VarFile(varFilePath))
-	if err != nil {
-		t.Errorf("Expected no error, but got: %v", err)
-	}
+	// //Apply Terraform configuration
+	// err = tf.Apply(context.Background(), tfexec.VarFile(varFilePath))
+	// if err != nil {
+	// 	t.Errorf("Expected no error, but got: %v", err)
+	// }
 }

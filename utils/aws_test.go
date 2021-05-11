@@ -1,8 +1,11 @@
 package utils
 
 import (
+	"crypto/tls"
+	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -34,8 +37,9 @@ func TestAWSCFStack(t *testing.T) {
 	stackOutput, err := DeployCFT(cftStackInput)
 	if err != nil {
 		t.Errorf("Expected no error, but got error %v", err)
+	} else {
+		t.Logf("Stack Output is %v", stackOutput)
 	}
-	t.Logf("Stack Output is %v", stackOutput)
 }
 
 func TestAWSCFOutput(t *testing.T) {
@@ -46,7 +50,7 @@ func TestAWSCFOutput(t *testing.T) {
 	svc := cloudformation.New(sess)
 	output, err := svc.DescribeStacks(&cloudformation.DescribeStacksInput{StackName: aws.String("aviatrix-controller")})
 	if err != nil {
-		t.Errorf("Expected no error, but go error: %v", err)
+		t.Errorf("Expected no error, but got error: %v", err)
 	}
 	type avxOutput struct {
 		ControllerEIP       string
@@ -71,4 +75,36 @@ func TestAWSCFOutput(t *testing.T) {
 		}
 	}
 	t.Logf("Struct info: %#v", out)
+}
+
+func TestControllerReady(t *testing.T) {
+	//Wait for Controller to be ready
+	// Skip Certificate Check
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{
+		Transport: tr,
+		Timeout:   10 * time.Second,
+	}
+	controllerIP := os.Getenv("PUBLIC_IP")
+	t.Logf("Connecting to %v", controllerIP)
+	count := 0
+	for {
+		resp, err := client.Get("https://" + controllerIP)
+		if err != nil {
+			t.Errorf("Expected no error, but got error: %v", err)
+		}
+		if resp != nil {
+			break
+		}
+		if count == 4 {
+			t.Errorf("Maximum retries reached")
+			break
+		}
+		t.Logf("count: %v", count)
+		count += 1
+		time.Sleep(30 * time.Second)
+	}
 }

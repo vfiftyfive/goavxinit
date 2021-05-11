@@ -6,15 +6,17 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/hashicorp/terraform-exec/tfinstall"
+	log "github.com/sirupsen/logrus"
 	"github.com/terraform-providers/terraform-provider-aviatrix/goaviatrix"
 	"github.com/vfiftyfive/Go-stuff/aviatrix/goavxinit/utils"
 )
@@ -29,14 +31,12 @@ func main() {
 	if *boolPtr {
 		fmt.Println(
 			`#Run the following commands and replace with your own values
-	#export PUBLIC_IP=<controller_public_ip>
-	#export PRIVATE_IP=<controller_private_ip>
 	#export NEW_PASSWORD=<new_controller_password>
 	#export ADMIN_EMAIL=<admin_email_address>
 	#export AVX_LICENSE=<aviatrix customer ID>
-
-	export PUBLIC_IP=1.2.3.4
-	export PRIVATE_IP=192.168.0.10
+	#export AWS_REGION=<AWS Region for the Controller>
+	#export CFT_URL=<URL of the Cloudformation Template to use>
+	
 	export NEW_PASSWORD="Aviatrix123"
 	export ADMIN_EMAIL="jane@aviatrix.com"
 	export GIT_URL="https://github.com/janedoe/awesomeprojet"
@@ -51,11 +51,10 @@ func main() {
 	}
 
 	//set variables with env
-	controllerIP := os.Getenv("PUBLIC_IP")
-	controllerPrivateIP := os.Getenv("PRIVATE_IP")
 	newPassword := os.Getenv("NEW_PASSWORD")
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	gitURL := os.Getenv("GIT_URL")
+	strBranchName := os.Getenv("BRANCH_NAME")
 	license := os.Getenv("AVX_LICENSE")
 	password := os.Getenv("AVX_PASSWORD")
 	varFilePath := os.Getenv("TF_VARFILE")
@@ -83,11 +82,12 @@ func main() {
 	}
 
 	//Deploy Controller with Cloudformation
+	log.Info("Deploying Cloudformation template...")
 	outputs, err := utils.DeployCFT(cftStackInput)
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	log.Info("Done.")
 	//Retrieve Controller Information
 	type avxOutput struct {
 		ControllerEIP       string
@@ -111,21 +111,60 @@ func main() {
 			out.RoleEC2ARN = *element.OutputValue
 		}
 	}
-
+	log.Infof("Cloudformation Outputs: %+v", out)
+	//Wait for Controller to be ready
 	// Skip Certificate Check
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
-
+	//Force 10s time-out on http client
+	httpClient := &http.Client{
+		Transport: tr,
+		Timeout:   10 * time.Second,
+	}
+	//Give-up after 3 tries to reach endpoing
+	log.Info("Trying to contact Controller...Will retry if not successful!")
+	time.Sleep(80 * time.Second)
+	count := 0
+	for {
+		resp, err := httpClient.Get("https://" + out.ControllerEIP)
+		if err != nil {
+			log.Warn(err)
+		}
+		if resp != nil {
+			break
+		}
+		if count == 3 {
+			log.Fatal("Maximum retries reached")
+			break
+		}
+		time.Sleep(30 * time.Second)
+	}
+	//Give-up after 3 tries to receive HTTP 200
+	for {
+		resp, err := httpClient.Get("https://" + out.ControllerEIP)
+		if err != nil {
+			log.Warn("Endpoint not Ready, retrying...: %v", err)
+		}
+		if resp.StatusCode == http.StatusOK {
+			log.Info("Received HTTP 200 OK!!!")
+			break
+		}
+		if count == 5 {
+			log.Fatal("Maximum retries reached :-(")
+			break
+		}
+		time.Sleep(30 * time.Second)
+	}
 	//When controller is booting for the first time, the default password
 	//is the controller's private IP address
-	var controllerURL = "https://" + controllerIP + "/v1/api"
+	var controllerURL = "https://" + out.ControllerEIP + "/v1/api"
 	if firstBoot {
-		password = controllerPrivateIP
+		password = out.ControllerPrivateIP
 	}
 
 	//Create new Client object and login to controller
-	client, err := goaviatrix.NewClient("admin", password, controllerIP, &http.Client{Transport: tr})
+	client, err := goaviatrix.NewClient("admin", password, out.ControllerEIP, httpClient)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -140,6 +179,11 @@ func main() {
 		if err = utils.ChangeAdminPassword(client, password, newPassword, controllerURL); err != nil {
 			log.Fatal(err)
 		}
+		//Refresh client object with new password
+		client, err = goaviatrix.NewClient("admin", newPassword, out.ControllerEIP, &http.Client{Transport: tr})
+		if err != nil {
+			log.Fatal(err)
+		}
 		//Update to latest software
 		data := map[string]string{
 			"action":    "initial_setup",
@@ -147,11 +191,6 @@ func main() {
 			"subaction": "run",
 		}
 		_, err = client.Post(controllerURL, data)
-		if err != nil {
-			log.Fatal(err)
-		}
-		//Refresh client object with new password
-		client, err = goaviatrix.NewClient("admin", newPassword, controllerIP, &http.Client{Transport: tr})
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -174,9 +213,12 @@ func main() {
 	}
 
 	//Pull repo to be used as Terraform source
+	log.Infof("Cloning Terraform Configuration from repository: %v", gitURL)
 	gitDir := tmpDir + "/clone"
 	_, err = git.PlainClone(gitDir, false, &git.CloneOptions{
-		URL: gitURL,
+		URL:           gitURL,
+		ReferenceName: plumbing.NewBranchReferenceName(strBranchName),
+		SingleBranch:  true,
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -197,9 +239,9 @@ func main() {
 	}
 
 	//Apply Terraform configuration
-	err = tf.Apply(context.Background(), tfexec.VarFile(varFilePath))
+	//and inject controller IP and AWS account id
+	err = tf.Apply(context.Background(), tfexec.VarFile(varFilePath), tfexec.Var("controller_ip="+out.ControllerEIP), tfexec.Var("aws_account_id="+out.AccountID))
 	if err != nil {
 		log.Fatal(err)
 	}
-
 }
