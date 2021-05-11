@@ -21,32 +21,42 @@ import (
 	"github.com/vfiftyfive/Go-stuff/aviatrix/goavxinit/utils"
 )
 
-var boolPtr = flag.Bool("sample", false, "Display sample configuration")
+//Display sample environment configuration with -sample or --sample option
+var boolPtr = flag.Bool("sample", false, "Display sample configuration.")
 
-//by default set firstBoot to true
+//By default set firstBoot to true
 var firstBoot = true
 
 func main() {
 	flag.Parse()
 	if *boolPtr {
 		fmt.Println(
-			`#Run the following commands and replace with your own values
-	#export NEW_PASSWORD=<new_controller_password>
-	#export ADMIN_EMAIL=<admin_email_address>
-	#export AVX_LICENSE=<aviatrix customer ID>
-	#export AWS_REGION=<AWS Region for the Controller>
-	#export CFT_URL=<URL of the Cloudformation Template to use>
-	
-	export NEW_PASSWORD="Aviatrix123"
-	export ADMIN_EMAIL="jane@aviatrix.com"
-	export GIT_URL="https://github.com/janedoe/awesomeprojet"
-	export AVX_LICENSE="123421234123412378"
-	export AWS_REGION="us-west-1"
-	export CFT_URL="http://nvermande.s3.amazonaws.com/Aviatrix/controller/AWS/aviatrix-controller-CFT.json"
-	export AWS_VPC_ID="vpc-0921eb763899faddc"
-	export AWS_SUBNET="subnet-0291c878d736c57fb"
-	export AWS_KEY_PAIR="avx-admin-london"
-	`)
+			`#Use this sample to create your own environment configuration.
+#E.g.> ./goavxinit -sample > avxenv
+#Then run
+#> source ./avxenv
+
+###############Variable Description##############################################
+#export NEW_PASSWORD=<new_controller_password>
+#export ADMIN_EMAIL=<admin_email_address>
+#export AVX_LICENSE=<aviatrix customer ID>
+#export AWS_REGION=<AWS Region for the Controller>
+#export CFT_URL=<URL of the Cloudformation Template to use>
+#export AWS_VPC_ID=<VPC where the controller will be deployed>
+#export AWS_SUBNET=<Subnet where the controller will be deployed>
+#export AWS_KEY_PAIR=<AWS key pair that will be used for the controller instance>
+################################################################################
+
+export NEW_PASSWORD="Av!@trix123"
+export ADMIN_EMAIL="jane@aviatrix.com"
+export GIT_URL="https://github.com/janedoe/awesomeprojet"
+export BRANCH_NAME="master"
+export AVX_LICENSE="123421234123412378"
+export AWS_REGION="us-west-1"
+export CFT_URL="http://nvermande.s3.amazonaws.com/Aviatrix/controller/AWS/aviatrix-controller-CFT.json"
+export AWS_VPC_ID="vpc-0921eb763899faddc"
+export AWS_SUBNET="subnet-0291c878d736c57fb"
+export AWS_KEY_PAIR="avx-admin-london"`)
 		os.Exit(0)
 	}
 
@@ -58,6 +68,7 @@ func main() {
 	license := os.Getenv("AVX_LICENSE")
 	password := os.Getenv("AVX_PASSWORD")
 	varFilePath := os.Getenv("TF_VARFILE")
+	awsRegion := os.Getenv("AWS_REGION")
 
 	//Create CFT stack input parameters
 	cftStackInput := cloudformation.CreateStackInput{
@@ -83,7 +94,7 @@ func main() {
 
 	//Deploy Controller with Cloudformation
 	log.Info("Deploying Cloudformation template...")
-	outputs, err := utils.DeployCFT(cftStackInput)
+	outputs, err := utils.DeployCFT(cftStackInput, awsRegion)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -170,12 +181,14 @@ func main() {
 	}
 
 	//add email
+	log.Info("Setting up admin e-mail...")
 	if err = utils.AddAdminEmail(client, adminEmail, controllerURL); err != nil {
 		log.Fatal(err)
 	}
 
 	//Change account password
 	if firstBoot {
+		log.Info("Changing admin password...")
 		if err = utils.ChangeAdminPassword(client, password, newPassword, controllerURL); err != nil {
 			log.Fatal(err)
 		}
@@ -197,6 +210,7 @@ func main() {
 	}
 
 	//Configure License / Customer ID
+	log.Info("Configuring license...")
 	if err = utils.RegisterLicense(client, license, controllerURL); err != nil {
 		log.Fatal(err)
 	}
@@ -207,6 +221,7 @@ func main() {
 		log.Fatal(err)
 	}
 	// defer os.RemoveAll(tmpDir)
+	log.Info("Installing lastest Terraform version...")
 	execPath, err := tfinstall.Find(context.Background(), tfinstall.LatestVersion(tmpDir, false))
 	if err != nil {
 		log.Fatal(err)
@@ -240,6 +255,7 @@ func main() {
 
 	//Apply Terraform configuration
 	//and inject controller IP and AWS account id
+	log.Info("Running Terraform apply...")
 	err = tf.Apply(context.Background(), tfexec.VarFile(varFilePath), tfexec.Var("controller_ip="+out.ControllerEIP), tfexec.Var("aws_account_id="+out.AccountID))
 	if err != nil {
 		log.Fatal(err)

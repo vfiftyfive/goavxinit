@@ -1,23 +1,17 @@
 package utils
 
 import (
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 )
 
 //DeployCFT creates the Cloudformation Stack to deploy the controller.
 //Returns the Cloudformation Output
-func DeployCFT(cftStackInput cloudformation.CreateStackInput) ([]*cloudformation.Output, error) {
-	//Use shared configuration file (~/.aws/config). You have to create this file.
-	//Config file example:
-	// [default]
-	// region = eu-west-2
-	// [profile iam.n.vermande]
-	// region = eu-west-2
-	// [profile nvermande-dev]
-	// region = us-west-2
-	sess, _ := session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
+func DeployCFT(cftStackInput cloudformation.CreateStackInput, awsRegion string) ([]*cloudformation.Output, error) {
+	//Create API session in set AWS region
+	sess, _ := session.NewSession(&aws.Config{
+		Region: aws.String(awsRegion),
 	})
 	// Create Cloudformation service client
 	svc := cloudformation.New(sess)
