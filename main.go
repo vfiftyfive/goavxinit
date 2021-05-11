@@ -69,7 +69,7 @@ export AWS_KEY_PAIR="avx-admin-london"`)
 	password := os.Getenv("AVX_PASSWORD")
 	varFilePath := os.Getenv("TF_VARFILE")
 	awsRegion := os.Getenv("AWS_REGION")
-
+	awsProfile := os.Getenv("AWS_PROFILE")
 	//Create CFT stack input parameters
 	cftStackInput := cloudformation.CreateStackInput{
 		Parameters: []*cloudformation.Parameter{
@@ -94,9 +94,10 @@ export AWS_KEY_PAIR="avx-admin-london"`)
 
 	//Deploy Controller with Cloudformation
 	log.Info("Deploying Cloudformation template...")
-	outputs, err := utils.DeployCFT(cftStackInput, awsRegion)
+	outputs, err := utils.DeployCFT(cftStackInput, awsRegion, awsProfile)
 	if err != nil {
-		log.Fatal(err)
+
+		log.Fatalf("%v\nSorry but the Cloudformation deployment failed :-( Please check the Cloudformation logs on AWS", err)
 	}
 	log.Info("Done.")
 	//Retrieve Controller Information
@@ -150,6 +151,7 @@ export AWS_KEY_PAIR="avx-admin-london"`)
 			break
 		}
 		time.Sleep(30 * time.Second)
+		count += 1
 	}
 	//Give-up after 3 tries to receive HTTP 200
 	for {

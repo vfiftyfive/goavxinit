@@ -1,20 +1,24 @@
 package utils
 
 import (
+	"os"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
+	log "github.com/sirupsen/logrus"
 )
 
 //DeployCFT creates the Cloudformation Stack to deploy the controller.
 //Returns the Cloudformation Output
-func DeployCFT(cftStackInput cloudformation.CreateStackInput, awsRegion string) ([]*cloudformation.Output, error) {
+func DeployCFT(cftStackInput cloudformation.CreateStackInput, awsRegion string, awsProfile string) ([]*cloudformation.Output, error) {
+	//Set Credentials Profile
+	os.Setenv("AWS_PROFILE", awsProfile)
 	//Create API session in set AWS region
-	sess, _ := session.NewSession(&aws.Config{
-		Region: aws.String(awsRegion),
-	})
+	sess, _ := session.NewSession()
 	// Create Cloudformation service client
-	svc := cloudformation.New(sess)
+	svc := cloudformation.New(sess, aws.NewConfig().WithRegion(awsRegion))
+	log.Infof("AWS Region is: %v", awsRegion)
 	//Deploy Cloudformation Stack with expected parameters
 	stackOutput, err := svc.CreateStack(&cftStackInput)
 	if err != nil {
