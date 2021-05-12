@@ -14,6 +14,7 @@ import (
 
 func TestAWSCFStack(t *testing.T) {
 	awsRegion := "us-west-2"
+	awsProfile := "nvermande-dev"
 	cftStackInput := cloudformation.CreateStackInput{
 		Parameters: []*cloudformation.Parameter{
 			{
@@ -35,7 +36,7 @@ func TestAWSCFStack(t *testing.T) {
 		OnFailure:    aws.String("DELETE"),
 	}
 	//Deploy Controller with Cloudformation
-	stackOutput, err := DeployCFT(cftStackInput, awsRegion)
+	stackOutput, err := DeployCFT(cftStackInput, awsRegion, awsProfile)
 	if err != nil {
 		t.Errorf("Expected no error, but got error %v", err)
 	} else {

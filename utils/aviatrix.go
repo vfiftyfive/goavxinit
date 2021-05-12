@@ -1,6 +1,12 @@
 package utils
 
 import (
+	"crypto/tls"
+	"errors"
+	"net/http"
+	"time"
+
+	log "github.com/sirupsen/logrus"
 	"github.com/terraform-providers/terraform-provider-aviatrix/goaviatrix"
 )
 
@@ -58,6 +64,51 @@ func RegisterLicense(client *goaviatrix.Client, license string, controllerURL st
 	}
 	if _, err := client.Post(controllerURL, data); err != nil {
 		return err
+	}
+	return nil
+}
+
+//Wait for Controller to be ready
+func WaitForController(client *http.Client, controllerIP string) error {
+	// Skip Certificate Check
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client.Transport = tr
+	//Force 10s time-out on http client
+	client.Timeout = 10 * time.Second
+	//Give-up after 3 tries to reach endpoint
+	log.Info("Trying to contact Controller...Will retry if not successful!")
+	time.Sleep(80 * time.Second)
+	count := 0
+	for {
+		resp, err := client.Get("https://" + controllerIP)
+		if err != nil {
+			return err
+		}
+		if resp != nil {
+			break
+		}
+		if count == 3 {
+			return err
+		}
+		time.Sleep(30 * time.Second)
+		count += 1
+	}
+	//Give-up after 5 tries to receive HTTP 200
+	for {
+		resp, err := client.Get("https://" + controllerIP)
+		if err != nil {
+			log.Warnf("Endpoint not Ready, retrying...: %v", err)
+		}
+		if resp.StatusCode == http.StatusOK {
+			log.Info("Received HTTP 200 OK!!!")
+			break
+		}
+		if count == 5 {
+			return (errors.New("Maximum retries reached :-("))
+		}
+		time.Sleep(30 * time.Second)
 	}
 	return nil
 }

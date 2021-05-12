@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -124,50 +123,8 @@ export AWS_KEY_PAIR="avx-admin-london"`)
 		}
 	}
 	log.Infof("Cloudformation Outputs: %+v", out)
-	//Wait for Controller to be ready
-	// Skip Certificate Check
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	//Force 10s time-out on http client
-	httpClient := &http.Client{
-		Transport: tr,
-		Timeout:   10 * time.Second,
-	}
-	//Give-up after 3 tries to reach endpoing
-	log.Info("Trying to contact Controller...Will retry if not successful!")
-	time.Sleep(80 * time.Second)
-	count := 0
-	for {
-		resp, err := httpClient.Get("https://" + out.ControllerEIP)
-		if err != nil {
-			log.Warn(err)
-		}
-		if resp != nil {
-			break
-		}
-		if count == 3 {
-			log.Fatal("Maximum retries reached")
-			break
-		}
-		time.Sleep(30 * time.Second)
-		count += 1
-	}
-	//Give-up after 3 tries to receive HTTP 200
-	for {
-		resp, err := httpClient.Get("https://" + out.ControllerEIP)
-		if err != nil {
-			log.Warn("Endpoint not Ready, retrying...: %v", err)
-		}
-		if resp.StatusCode == http.StatusOK {
-			log.Info("Received HTTP 200 OK!!!")
-			break
-		}
-		if count == 5 {
-			log.Fatal("Maximum retries reached :-(")
-			break
-		}
-		time.Sleep(30 * time.Second)
+	if err = utils.WaitForController(&http.Client{}, out.ControllerEIP); err != nil {
+		log.Fatal(err)
 	}
 	//When controller is booting for the first time, the default password
 	//is the controller's private IP address
@@ -210,8 +167,13 @@ export AWS_KEY_PAIR="avx-admin-london"`)
 			log.Fatal(err)
 		}
 	}
-
+	time.Sleep(3 * time.Minute)
 	//Configure License / Customer ID
+	//Refresh client object with new password
+	client, err = goaviatrix.NewClient("admin", newPassword, out.ControllerEIP, &http.Client{Transport: tr})
+	if err != nil {
+		log.Fatal(err)
+	}
 	log.Info("Configuring license...")
 	if err = utils.RegisterLicense(client, license, controllerURL); err != nil {
 		log.Fatal(err)
