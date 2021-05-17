@@ -70,22 +70,18 @@ func RegisterLicense(client *goaviatrix.Client, license string, controllerURL st
 
 //Wait for Controller to be ready
 func WaitForController(client *http.Client, controllerIP string) error {
-	// Skip Certificate Check
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client.Transport = tr
 	//Force 10s time-out on http client
 	client.Timeout = 10 * time.Second
+	//Skip TLS verification
+	client.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
 	//Give-up after 3 tries to reach endpoint
 	log.Info("Trying to contact Controller...Will retry if not successful!")
 	time.Sleep(80 * time.Second)
 	count := 0
 	for {
 		resp, err := client.Get("https://" + controllerIP)
-		if err != nil {
-			return err
-		}
 		if resp != nil {
 			break
 		}

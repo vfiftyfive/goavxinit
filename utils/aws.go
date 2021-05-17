@@ -14,7 +14,7 @@ import (
 func DeployCFT(cftStackInput cloudformation.CreateStackInput, awsRegion string, awsProfile string) ([]*cloudformation.Output, error) {
 	//Set Credentials Profile
 	os.Setenv("AWS_PROFILE", awsProfile)
-	//Create API session in set AWS region
+	//Create API session and set AWS region
 	sess, _ := session.NewSession()
 	// Create Cloudformation service client
 	svc := cloudformation.New(sess, aws.NewConfig().WithRegion(awsRegion))

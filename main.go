@@ -69,6 +69,7 @@ export AWS_KEY_PAIR="avx-admin-london"`)
 	varFilePath := os.Getenv("TF_VARFILE")
 	awsRegion := os.Getenv("AWS_REGION")
 	awsProfile := os.Getenv("AWS_PROFILE")
+
 	//Create CFT stack input parameters
 	cftStackInput := cloudformation.CreateStackInput{
 		Parameters: []*cloudformation.Parameter{
@@ -122,10 +123,15 @@ export AWS_KEY_PAIR="avx-admin-london"`)
 			out.RoleEC2ARN = *element.OutputValue
 		}
 	}
-	log.Infof("Cloudformation Outputs: %+v", out)
-	if err = utils.WaitForController(&http.Client{}, out.ControllerEIP); err != nil {
+	log.Info("Cloudformation Outputs:\n")
+	log.Infof("\t Controller Public IP: %v ", out.ControllerEIP)
+	log.Infof("\t Controller Private IP: %v ", out.ControllerPrivateIP)
+	//Wait for Controller to be ready
+	httpClient := &http.Client{}
+	if err = utils.WaitForController(httpClient, out.ControllerEIP); err != nil {
 		log.Fatal(err)
 	}
+
 	//When controller is booting for the first time, the default password
 	//is the controller's private IP address
 	var controllerURL = "https://" + out.ControllerEIP + "/v1/api"
@@ -133,7 +139,6 @@ export AWS_KEY_PAIR="avx-admin-london"`)
 		password = out.ControllerPrivateIP
 	}
 
-	//Create new Client object and login to controller
 	client, err := goaviatrix.NewClient("admin", password, out.ControllerEIP, httpClient)
 	if err != nil {
 		log.Fatal(err)
@@ -151,9 +156,9 @@ export AWS_KEY_PAIR="avx-admin-london"`)
 		if err = utils.ChangeAdminPassword(client, password, newPassword, controllerURL); err != nil {
 			log.Fatal(err)
 		}
-		//Refresh client object with new password
-		client, err = goaviatrix.NewClient("admin", newPassword, out.ControllerEIP, &http.Client{Transport: tr})
-		if err != nil {
+		client.Password = newPassword
+		//Login with new password
+		if err = client.Login(); err != nil {
 			log.Fatal(err)
 		}
 		//Update to latest software
@@ -162,18 +167,25 @@ export AWS_KEY_PAIR="avx-admin-london"`)
 			"CID":       client.CID,
 			"subaction": "run",
 		}
+		log.Info("Upgrading software to last version...")
+		client.HTTPClient.Timeout = 4 * time.Minute
 		_, err = client.Post(controllerURL, data)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
-	time.Sleep(3 * time.Minute)
-	//Configure License / Customer ID
-	//Refresh client object with new password
-	client, err = goaviatrix.NewClient("admin", newPassword, out.ControllerEIP, &http.Client{Transport: tr})
-	if err != nil {
+
+	//Wait for end of upgrade
+	if err = utils.WaitForController(httpClient, out.ControllerEIP); err != nil {
 		log.Fatal(err)
 	}
+
+	//Refresh client
+	if err = client.Login(); err != nil {
+		log.Fatal(err)
+	}
+
+	//Configure License / Customer ID
 	log.Info("Configuring license...")
 	if err = utils.RegisterLicense(client, license, controllerURL); err != nil {
 		log.Fatal(err)
