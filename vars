@@ -4,8 +4,17 @@
 #export NEW_PASSWORD=<new_controller_password>
 #export ADMIN_EMAIL=<admin_email_address>
 
-export PUBLIC_IP=1.2.3.4
-export PRIVATE_IP=192.168.0.10
-export NEW_PASSWORD="Aviatrix123"
+export PUBLIC_IP="18.117.31.180"
+export NEW_PASSWORD="AV!@trix123"
 export ADMIN_EMAIL="jane@aviatrix.com"
-
+export AVX_LICENSE="carmelodev-1393702544.64"
+export AWS_REGION="us-east-2"
+export AVX_PASSWORD="AV!@trix123"
+export GIT_URL="https://github.com/vfiftyfive/terraform_aviatrix_new_hire"
+export TF_VARFILE="/Users/nvermande/Documents/Dev/Aviatrix/terraform/newhire/terraform.tfvars"
+export CFT_URL="http://nvermande.s3.amazonaws.com/Aviatrix/controller/AWS/aviatrix-controller-CFT.json"
+export AWS_VPC_ID="vpc-0517d2599892ef9ea"
+export AWS_SUBNET="subnet-03440feb85b20a61e"
+export AWS_KEY_PAIR="avx-admin-ohio-dev"
+export AWS_PROFILE="nvermande-dev"
+export BRANCH_NAME="no_remote_state"
