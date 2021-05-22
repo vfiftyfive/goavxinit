@@ -74,8 +74,8 @@ export AVXVERSION=""6.2"`)
 	varFilePath := os.Getenv("TF_VARFILE")
 	awsRegion := os.Getenv("AWS_REGION")
 	awsProfile := os.Getenv("AWS_PROFILE")
-	runTF := os.Getenv("RUNTF")
-	avxVersion := os.Getenv("AVXVERSION")
+	runTF := os.Getenv("RUN_TF")
+	avxVersion := os.Getenv("AVX_VERSION")
 
 	//Create CFT stack input parameters
 	cftStackInput := cloudformation.CreateStackInput{
