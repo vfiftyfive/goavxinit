@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -44,6 +45,7 @@ func main() {
 #export AWS_VPC_ID=<VPC where the controller will be deployed>
 #export AWS_SUBNET=<Subnet where the controller will be deployed>
 #export AWS_KEY_PAIR=<AWS key pair that will be used for the controller instance>
+#export RUNTF=<boolean that determines if TF configuration must be applied>
 ################################################################################
 
 export NEW_PASSWORD="Av!@trix123"
@@ -55,7 +57,8 @@ export AWS_REGION="us-west-1"
 export CFT_URL="http://nvermande.s3.amazonaws.com/Aviatrix/controller/AWS/aviatrix-controller-CFT.json"
 export AWS_VPC_ID="vpc-0921eb763899faddc"
 export AWS_SUBNET="subnet-0291c878d736c57fb"
-export AWS_KEY_PAIR="avx-admin-london"`)
+export AWS_KEY_PAIR="avx-admin-london"
+export RUNTF="false"`)
 		os.Exit(0)
 	}
 
@@ -69,6 +72,7 @@ export AWS_KEY_PAIR="avx-admin-london"`)
 	varFilePath := os.Getenv("TF_VARFILE")
 	awsRegion := os.Getenv("AWS_REGION")
 	awsProfile := os.Getenv("AWS_PROFILE")
+	runTF := os.Getenv("RUNTF")
 
 	//Create CFT stack input parameters
 	cftStackInput := cloudformation.CreateStackInput{
@@ -191,49 +195,56 @@ export AWS_KEY_PAIR="avx-admin-london"`)
 		log.Fatal(err)
 	}
 
-	//Install Terraform
-	tmpDir, err := ioutil.TempDir("", "tfinstall")
+	//Convert runTF got boolean
+	b, err := strconv.ParseBool(runTF)
 	if err != nil {
 		log.Fatal(err)
 	}
-	// defer os.RemoveAll(tmpDir)
-	log.Info("Installing lastest Terraform version...")
-	execPath, err := tfinstall.Find(context.Background(), tfinstall.LatestVersion(tmpDir, false))
-	if err != nil {
-		log.Fatal(err)
-	}
+	if b {
+		//Install Terraform
+		tmpDir, err := ioutil.TempDir("", "tfinstall")
+		if err != nil {
+			log.Fatal(err)
+		}
+		// defer os.RemoveAll(tmpDir)
+		log.Info("Installing lastest Terraform version...")
+		execPath, err := tfinstall.Find(context.Background(), tfinstall.LatestVersion(tmpDir, false))
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	//Pull repo to be used as Terraform source
-	log.Infof("Cloning Terraform Configuration from repository: %v", gitURL)
-	gitDir := tmpDir + "/clone"
-	_, err = git.PlainClone(gitDir, false, &git.CloneOptions{
-		URL:           gitURL,
-		ReferenceName: plumbing.NewBranchReferenceName(strBranchName),
-		SingleBranch:  true,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+		//Pull repo to be used as Terraform source
+		log.Infof("Cloning Terraform Configuration from repository: %v", gitURL)
+		gitDir := tmpDir + "/clone"
+		_, err = git.PlainClone(gitDir, false, &git.CloneOptions{
+			URL:           gitURL,
+			ReferenceName: plumbing.NewBranchReferenceName(strBranchName),
+			SingleBranch:  true,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	//Define new Terraform Structure
-	workingDir := tmpDir + "/clone"
-	tf, err := tfexec.NewTerraform(workingDir, execPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	tf.SetStdout(os.Stdout)
+		//Define new Terraform Structure
+		workingDir := tmpDir + "/clone"
+		tf, err := tfexec.NewTerraform(workingDir, execPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		tf.SetStdout(os.Stdout)
 
-	//Run Terraform init
-	err = tf.Init(context.Background(), tfexec.Upgrade(true))
-	if err != nil {
-		log.Fatal(err)
-	}
+		//Run Terraform init
+		err = tf.Init(context.Background(), tfexec.Upgrade(true))
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	//Apply Terraform configuration
-	//and inject controller IP and AWS account id
-	log.Info("Running Terraform apply...")
-	err = tf.Apply(context.Background(), tfexec.VarFile(varFilePath), tfexec.Var("controller_ip="+out.ControllerEIP), tfexec.Var("aws_account_id="+out.AccountID))
-	if err != nil {
-		log.Fatal(err)
+		//Apply Terraform configuration
+		//and inject controller IP and AWS account id
+		log.Info("Running Terraform apply...")
+		err = tf.Apply(context.Background(), tfexec.VarFile(varFilePath), tfexec.Var("controller_ip="+out.ControllerEIP), tfexec.Var("aws_account_id="+out.AccountID))
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 }
