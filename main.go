@@ -46,6 +46,7 @@ func main() {
 #export AWS_SUBNET=<Subnet where the controller will be deployed>
 #export AWS_KEY_PAIR=<AWS key pair that will be used for the controller instance>
 #export RUNTF=<boolean that determines if TF configuration must be applied>
+#export AVXVERSION=<major.minor version of the controller. Default to latest>
 ################################################################################
 
 export NEW_PASSWORD="Av!@trix123"
@@ -58,7 +59,8 @@ export CFT_URL="http://nvermande.s3.amazonaws.com/Aviatrix/controller/AWS/aviatr
 export AWS_VPC_ID="vpc-0921eb763899faddc"
 export AWS_SUBNET="subnet-0291c878d736c57fb"
 export AWS_KEY_PAIR="avx-admin-london"
-export RUNTF="false"`)
+export RUNTF="false"
+export AVXVERSION=""6.2"`)
 		os.Exit(0)
 	}
 
@@ -73,6 +75,7 @@ export RUNTF="false"`)
 	awsRegion := os.Getenv("AWS_REGION")
 	awsProfile := os.Getenv("AWS_PROFILE")
 	runTF := os.Getenv("RUNTF")
+	avxVersion := os.Getenv("AVXVERSION")
 
 	//Create CFT stack input parameters
 	cftStackInput := cloudformation.CreateStackInput{
@@ -167,9 +170,10 @@ export RUNTF="false"`)
 		}
 		//Update to latest software
 		data := map[string]string{
-			"action":    "initial_setup",
-			"CID":       client.CID,
-			"subaction": "run",
+			"action":         "initial_setup",
+			"CID":            client.CID,
+			"subaction":      "run",
+			"target_version": avxVersion,
 		}
 		log.Info("Upgrading software to last version...")
 		client.HTTPClient.Timeout = 4 * time.Minute
