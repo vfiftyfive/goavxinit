@@ -195,11 +195,12 @@ export RUNTF="false"`)
 		log.Fatal(err)
 	}
 
-	//Convert runTF got boolean
+	//Convert runTF to boolean
 	b, err := strconv.ParseBool(runTF)
 	if err != nil {
 		log.Fatal(err)
 	}
+	//Run TF actions if TF is enabled
 	if b {
 		//Install Terraform
 		tmpDir, err := ioutil.TempDir("", "tfinstall")
